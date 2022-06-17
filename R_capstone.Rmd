@@ -1,0 +1,208 @@
+---
+title: "R Capstone Project - Exploring the impact of product popularity on electronic companies"
+author: "Aqilah Amran"
+date: "14/06/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Exploring the Impact of Product Popularity on Electronic Companies
+
+## Introduction
+
+Living in the 21st century, we have become increasingly dependent on technology, with phones and laptops being an essential part of our daily lives. Apple in particular, has managed to establish itself as one of the most influential brands in the tech space. In this document, I will be exploring the popularity of some of the biggest Apple products and their impact on Apple's stock price. To do this, I will be using 2 libraries - gtrendsR to look into the search activities of these products, and quantmod to extract stock data.
+
+## The Data
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(quantmod)
+library(gtrendsR)
+
+```
+
+### Apple Stock Trends
+
+I started out by compiling the stock trends for Apple using the quantmods library.
+
+```{r}
+#getting the stock data for the companies 
+getSymbols(c("AAPL"), src= "yahoo")
+
+#converting the data into the data frame and eliminating unnecessary columns 
+apple_trends <- data.frame("Apple" = AAPL$AAPL.Close, "Date" = as.Date(row.names(as.data.frame(AAPL))))
+
+#reshaping the data frame 
+apple_trends <- apple_trends %>%
+                 gather(key = "stock", value = "value", -Date)
+
+#plotting the stock trend
+apple_trends_plot <- ggplot(apple_trends, aes(Date,value,colour=stock)) +
+                      geom_line() +
+                      labs(title = "Stock Prices of Apple", y = "Stock Price") +
+                      theme(legend.position = "none")
+apple_trends_plot
+```
+
+### Search Activity Trends of Apple Products
+
+Then, I compiled the search activity data from the gtrendsR library for Apple's major products - the iPhone, iPad, Macbooks, and Airpods.
+
+```{r}
+# Getting the search activities for the most popular phone models in each company over a period of 5 years
+
+search_trends <- gtrends(keyword=c("iPad","iPhone", "Macbook", "Airpods"))
+trends_over_time <- search_trends$interest_over_time
+trends_over_time <- trends_over_time %>% 
+                      mutate(hits = as.numeric(hits)) %>%
+                      replace_na(list(hits=0)) 
+
+trend_plot <- ggplot(trends_over_time, aes(date,hits,colour = keyword)) + 
+                geom_line() +
+                scale_color_discrete(name = "Product", labels = c("iPhone", "iPad", "Macbook", "Airpods" )) + 
+                labs(title = "Google Trend Data For Apple Products", y = "Hits (Normalized to be between 0 and 1000", x = "Date")
+
+trend_plot
+
+```
+
+### Combining Trend data with Stock data
+
+I then compared the stock data from 2016 onward with the search trends of each product individually to explore their influence on Apple's stock prices. 2016 was chosen as a cut off time point as even though there is stock data that spans before that timeline, there are products that had not been released yet.
+
+```{r}
+# 2016 onward
+recent_apple_stocks <- apple_trends %>% filter(Date > as.Date("2016-01-01"))
+```
+
+#### iPhone influence
+
+```{r}
+
+apple_stock_iPhone <- ggplot() + 
+                        geom_line(recent_apple_stocks, mapping = aes(Date,value,colour=stock)) +
+                        geom_line(filter(trends_over_time, keyword == "iPhone"), mapping = aes(as.Date(date),hits,colour = "iPhone")) +
+                        scale_y_continuous(name="Price", sec.axis = sec_axis(~., name="Google Trends Hits")) + 
+                        scale_colour_discrete(labels = c("Apple Stocks","iPhone")) +
+                        labs(title = "Apple Stock and Google Trends") +
+                        theme(legend.title = element_blank())
+
+apple_stock_iPhone
+```
+
+#### iPad influence
+
+```{r}
+apple_stock_iPad <- ggplot() + 
+                        geom_line(recent_apple_stocks, mapping = aes(Date,value,colour=stock)) +
+                        geom_line(filter(trends_over_time, keyword == "iPad"), mapping = aes(as.Date(date),hits,colour = "iPad")) +
+                        scale_y_continuous(name="Price", sec.axis = sec_axis(~., name="Google Trends Hits")) + 
+                        scale_colour_discrete(labels = c("Apple Stocks","iPad")) +
+                        labs(title = "Apple Stock and Google Trends") +
+                        theme(legend.title = element_blank())
+
+apple_stock_iPad
+```
+
+#### Macbook influence
+
+```{r}
+
+apple_stock_Macbook <- ggplot() + 
+                        geom_line(recent_apple_stocks, mapping = aes(Date,value,colour=stock)) +
+                        geom_line(filter(trends_over_time, keyword == "Macbook"), mapping = aes(as.Date(date),hits,colour = "Macbook")) +
+                        scale_y_continuous(name="Price", sec.axis = sec_axis(~., name="Google Trends Hits")) + 
+                        scale_colour_discrete(labels = c("Apple Stocks","Macbook")) +
+                        labs(title = "Apple Stock and Google Trends") +
+                        theme(legend.title = element_blank())
+
+apple_stock_Macbook
+```
+
+#### Airpods influence
+
+```{r}
+apple_stock_airpods <- ggplot() + 
+                        geom_line(recent_apple_stocks, mapping = aes(Date,value,colour=stock)) +
+                        geom_line(filter(trends_over_time, keyword == "Airpods"), mapping = aes(as.Date(date),hits,colour = "Airpods")) +
+                        scale_y_continuous(name="Price", sec.axis = sec_axis(~., name="Google Trends Hits")) + 
+                        scale_colour_discrete(labels = c("Apple Stocks","Airpods")) +
+                        labs(title = "Apple Stock and Google Trends") +
+                        theme(legend.title = element_blank())
+
+apple_stock_airpods
+
+```
+
+From the data, it seems that the iPhone is the most popular Apple product, however, it does not seem to have a large influence on stock prices. This could be due to a variety of reasons, such as the iPhone only being a subset of what makes up Apple, and that there are a majority of other factors that could be playing a part in influencing the stock prices of the company.
+
+### Digging into the Trend Data
+
+I also wanted to visualise the differences in the search trend activity of these products around the world. To do this, I plotted the worldwide trends on used the maps library.
+
+```{r}
+install.packages("maps")
+library(maps)
+
+#getting the trends by region
+
+country_trends <- search_trends$interest_by_country %>%
+            mutate(location = tolower(location)) %>%
+            replace_na(list(hits=0))
+
+#plotting the map
+
+worldmap <- map_data("world2") %>%
+            mutate(region = tolower(region))
+
+map_plot <- country_trends %>% ggplot(aes(map_id = location)) +
+              geom_map(aes(fill=hits), map = worldmap) +
+              expand_limits(x = worldmap$long, y = worldmap$lat) + 
+              facet_wrap(~ keyword) +
+              labs(title = "Google Trend Data For Apple Products By State", x = "Longitude", y = "Latitude") + 
+              scale_fill_continuous(name = "Hits (Scaled to 100)")
+
+map_plot
+
+```
+
+The data tells us that Australia and North America have the most consistent interest in the 4 products being compared. It is also interesting to note that China had the largest interest for the Macbook. Insights into this could help the company get a better understanding of the differing interests of the various regions on their range of products, and be able tailor their marketing strategies accordingly.
+
+### Influence of Apple Stock prices on competitors
+
+Lastly, I wanted to explore the influence of Apple's stock prices on its biggest competitor, Samsung. To do this, I did a linear regression analysis with Apple stock prices on the x axis, and Samsung's on the Y axis over the past 10 years. There were several dates within the Samsung stocks that had NA listed in the SSNLF.Close column. These dates were removed from the comb_trends data frame.
+
+```{r}
+# getting Samsung's stock data 
+
+getSymbols(c("SSNLF"), src= "yahoo")
+comb_trends <- data.frame("Samsung" = SSNLF$SSNLF.Close, "Apple" = AAPL$AAPL.Close, "Date" = as.Date(row.names(as.data.frame(SSNLF)))) %>%
+  drop_na(SSNLF.Close) %>%
+  drop_na(AAPL.Close) %>%
+  filter(Date > as.Date("2012-01-01"))
+  
+
+# plotting the linear regression
+
+apple_samsung_plot <- ggplot(comb_trends, aes(AAPL.Close,SSNLF.Close)) + 
+                        geom_point() +
+                        geom_smooth(method = "lm") +
+                        geom_smooth(se = FALSE, color = "red") + 
+                        labs(title = "Apple Stock vs Samsung Stock", x = "Apple Stock", y = "Samsung Stock")
+
+apple_samsung_plot
+
+```
+
+From the data, it seems like the relationship is not linear. This is not a surprise because as mentioned before, there are multiple factors that influences a company's market value. As a result, a multiple regression model that considers more factors might be more effective at predicting the stock prices of these 2 competitors.
+
+## Conclusion
+
+In this project, I was able to use different methods to evaluate the influence of a companies products on their overall success. Google trends helped to identify when there was hype around a particular product and stock prices were a good indicator of a company's value. However, the two data sets seemed to be too general to revel any new insights when used together. In saying that, it was still interesting to see the distribution of the popularity of the different Apple products in different regions around the world. - this helped uncover different demographics and their interests.
+
+If this project was progressed further, it would be interesting to look at other data sets that might work better with the stock data. For example, a data frame with profit margins for each product might be more useful in predicting stock data. There might also be a correlation with an increase in search activity and profit margins.
